@@ -1,0 +1,945 @@
+package autom;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+public class Funcoes {
+
+    private int incr;
+    private Tokens pal;
+    private Tokens vez;
+    private List<Tokens> tokens = new ArrayList<>();
+    private List<Character> entrada;
+    int estado = 0;
+    int cond=0;
+    List<Character> tokenTEMP = new ArrayList<>();
+    List<String> identificadores = new ArrayList<>();
+    List<String> digitos = new ArrayList<>();
+    List<String> simbolos = new ArrayList<>();
+    List<String> proibidas = new ArrayList<>();
+    
+    public Funcoes(){
+        this.pal = new Tokens();
+    }
+
+    public void setAmbiente(List<Character> StringTXT, List<String> reservadas) throws IOException {
+        this.entrada = StringTXT;
+        this.proibidas = reservadas;
+        System.out.println("incr " + incr);
+        while (this.getIncr() < this.entrada.size() && cond==0) {
+            System.out.println("lido:" + obter_token().getConteudo());           
+        }
+    }
+
+    public Tokens obter_token() throws IOException {
+        boolean a;
+        //System.out.println("ta no: " + this.entrada.get(getIncr()));
+        //System.out.println("incr ao entrar "+incr);
+        thedo:
+        do {
+            switch (estado) {
+                case 0:
+                    if (Character.isLetter(entrada.get(incr))) {
+                        estado = 1;
+                    } else if (Character.isDigit(entrada.get(incr))) {
+                        estado = 2;
+                    } else if (entrada.get(incr) == ';' || entrada.get(incr) == '.'
+                            || entrada.get(incr) == '+' || entrada.get(incr) == '('
+                            || entrada.get(incr) == ')' || entrada.get(incr) == '<'
+                            || entrada.get(incr) == '>' || entrada.get(incr) == ':'
+                            || entrada.get(incr) == '=' || entrada.get(incr) == '{'
+                            || entrada.get(incr) == '}' || entrada.get(incr) == '*') {
+                        estado = 3;
+                        //System.out.println("entrou no "+entrada.get(incr));
+                    } else if (entrada.get(incr) == ',' || entrada.get(incr) == '-') {
+                        estado = 4;
+                    } else if (entrada.get(incr) == '@' || entrada.get(incr) == '/') {
+                        estado = 5;
+                    } else if (entrada.get(incr) == ' ' || entrada.get(incr) == '\n'
+                            || entrada.get(incr) == '\t') {
+                        incr++;
+                    } else {
+                        System.out.println("BREAK! Caractere não reconhecido: " + entrada.get(incr));
+                        cond=1;
+                        break thedo;
+                    }
+                    break;
+                case 1:
+                    if (Character.isLetter(entrada.get(incr))) {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        boolean duoarroba = false;
+                        //boolean permitidoarroba = true;
+                        nome:
+                        while (true) {
+                            if (Character.isLetter(entrada.get(incr)) || Character.isDigit(entrada.get(incr))) {
+                                tokenTEMP.add(entrada.get(incr));
+                            } else if (entrada.get(incr) == '_') {
+                                estado = 4;
+                                //permitidoarroba = false;
+                                break nome;
+                            } else if (entrada.get(incr) == '@') {
+                                tokenTEMP.add(entrada.get(incr));
+                                incr++;
+                                if ((entrada.get(incr) == '@')) {
+                                    tokenTEMP.add(entrada.get(incr));
+                                    duoarroba = true;
+                                } else {
+                                    incr--;
+                                }
+                            } else {
+                                estado = 0;
+                                boolean retorno;
+                                if (!verifica(tokenTEMP, proibidas)) {
+                                    retorno = adicionar(pal, tokenTEMP, identificadores, duoarroba);
+                                    if (!retorno) {
+                                        System.out.println("BREAK! Identificador inválido");
+                                        break thedo;
+                                    }
+                                }else{
+                                    addReservada(pal, tokenTEMP);
+                                }
+                                //incr++;
+                                //System.out.println("elemento: "+entrada.get(incr));
+                                 duoarroba = false;
+                                break thedo;
+                            }
+
+                            incr++;
+                        }
+                        duoarroba = false;
+                        //permitidoarroba=true;
+                    }
+
+                    break;
+                case 2:
+                    if (Character.isDigit(entrada.get(incr))) {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        nome:
+                        while (true) {
+                            if (Character.isDigit(entrada.get(incr))) {
+                                tokenTEMP.add(entrada.get(incr));
+                            } else if (Character.isLetter(entrada.get(incr)) || entrada.get(incr) == '@') {
+                                estado = 1;
+                                break nome;
+                            } else {
+                                validaDigito(pal, tokenTEMP, digitos);
+                                estado = 0;
+                                incr++;
+                                break thedo;
+                            }
+                            incr++;
+                        }
+
+                    }
+                    break;
+                case 3:
+                    if (entrada.get(incr) == '>' || entrada.get(incr) == ':') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (entrada.get(incr) == '=') {
+                            tokenTEMP.add(entrada.get(incr));
+                            idOperador(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == '<') {
+                        //System.out.println("anterior: "+entrada.get(incr-1));
+                        //System.out.println("achou o <");
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (entrada.get(incr) == '=' || entrada.get(incr) == '>') {
+                            //System.out.println("achou o "+entrada.get(incr));
+                            tokenTEMP.add(entrada.get(incr));
+                            idOperador(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        } else {
+                            //System.out.println("entrou no else no "+entrada.get(incr));
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == '.') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (entrada.get(incr) == '*') {
+                            tokenTEMP.add(entrada.get(incr));
+                            idOperador(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == '(') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (entrada.get(incr) == '*') {
+                            nome:
+                            while (true) {
+                                incr++;
+                                //pos = incr + 1;
+                                if (entrada.get(incr) == '*') {
+                                    incr++;
+                                    if (entrada.get(incr) == ')') {
+                                        System.out.println("comentario de muitas linhas");
+                                        break nome;
+                                    }
+                                }
+                                if (incr == entrada.size() - 1) {
+                                    System.out.println("fim do programa! Final do comentário nao encontrado");
+                                    break thedo;
+                                }
+                            }
+                            tokenTEMP.clear();
+                            incr++;
+                            estado = 0;
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    } else {
+                        tokenTEMP.add(entrada.get(incr));
+                        idSimbol(pal, tokenTEMP, simbolos);
+                        estado = 0;
+                        incr++;
+                        break thedo;
+                    }
+                case 4:
+                    if (entrada.get(incr) == '-') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (Character.isDigit(entrada.get(incr))) {
+                            tokenTEMP.add(entrada.get(incr));
+                            incr++;
+                            nome:
+                            while (true) {
+                                if (Character.isDigit(entrada.get(incr))) {
+                                    tokenTEMP.add(entrada.get(incr));
+                                } else if (entrada.get(incr) == ',') {
+                                    estado = 4;
+                                    break nome;
+                                } else {
+                                    estado = 0;
+                                    incr++;
+                                    validaDigito(pal, tokenTEMP, digitos);
+                                    break thedo;
+                                }
+                                incr++;
+                            }
+                        } else if (entrada.get(incr) == '-') {
+                            System.out.println("cadeia invalida por repeticao");
+                            estado = 0;
+                            incr++;
+                            break;
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == ',') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (Character.isDigit(entrada.get(incr))) {
+                            tokenTEMP.add(entrada.get(incr));
+                            incr++;
+                            nome:
+                            while (true) {
+                                if (Character.isDigit(entrada.get(incr))) {
+                                    tokenTEMP.add(entrada.get(incr));
+                                } else if (entrada.get(incr) == ',') {
+                                    estado = 4;
+                                    break nome;
+                                } else {
+                                    estado = 0;
+                                    validaDigito(pal, tokenTEMP, digitos);
+                                    incr++;
+                                    break thedo;
+                                }
+                                incr++;
+                            }
+                        } else if (entrada.get(incr) == ',') {
+                            System.out.println("cadeia invalida por repeticao");
+                            estado = 0;
+                            incr++;
+                            break;
+
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == '_') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (Character.isLetter(entrada.get(incr))) {
+                            tokenTEMP.add(entrada.get(incr));
+                            incr++;
+                            nome:
+                            while (true) {
+                                if (Character.isLetter(entrada.get(incr))) {
+                                    tokenTEMP.add(entrada.get(incr));
+                                } else if (entrada.get(incr) == '_') {
+                                    estado = 4;
+                                    break nome;
+                                } else if (entrada.get(incr) == '@') {
+                                    System.out.println("BREAK! Identificador invalido: @");
+                                    break thedo;
+                                } else {
+                                    estado = 0;
+                                    boolean retorno;
+                                    retorno = adicionar(pal, tokenTEMP, identificadores, false);
+                                    if (!retorno) {
+                                        System.out.println("BREAK! Identificador inválido");
+                                        break thedo;
+                                    }
+                                    incr++;
+                                    break thedo;
+                                }
+                                incr++;
+                            }
+                        } else if (entrada.get(incr) == '_') {
+                            System.out.println("cadeia invalida por repeticao");
+                            estado = 0;
+                            incr++;
+                            break;
+
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    }
+                    break;
+                case 5:
+                    if (entrada.get(incr) == '@') {
+                        //System.out.println("achou o 1º @");
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        if (entrada.get(incr) == '@') {
+                            //System.out.println("achou o 2º @");
+                            incr++;
+                            nome:
+                            while (entrada.get(incr) != '\n') {
+                                //System.out.println("ta no while no: " + entrada.get(incr));
+                                incr++;
+                            }
+                            System.out.println("comentario de uma linha");
+                            tokenTEMP.clear();
+                            incr++;
+                            estado = 0;
+                        } else if (Character.isLetter(entrada.get(incr))) {
+                            tokenTEMP.add(entrada.get(incr));
+                            incr++;
+                            nome:
+                            while (true) {
+                                if (Character.isLetter(entrada.get(incr))) {
+                                    tokenTEMP.add(entrada.get(incr));
+                                } else if (entrada.get(incr) == '_') {
+                                    estado = 4;
+                                    break nome;
+                                } else if (entrada.get(incr) == '@') {
+                                    estado = 5;
+                                    break nome;
+                                } else {
+                                    estado = 0;
+                                    boolean retorno;
+                                    retorno = adicionar(pal, tokenTEMP, identificadores, false);
+                                    if (!retorno) {
+                                        System.out.println("BREAK! Identificador inválido");
+                                        break thedo;
+                                    }
+                                    incr++;
+                                    break thedo;
+                                }
+                                incr++;
+                            }
+
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    } else if (entrada.get(incr) == '/') {
+                        tokenTEMP.add(entrada.get(incr));
+                        incr++;
+                        boolean continua = true;
+                        if (entrada.get(incr) == '/') {
+                            nome:
+                            while (true) {
+                                incr++;
+                                //pos = incr + 1;
+                                if (entrada.get(incr) == '/') {
+                                    incr++;
+                                    if (entrada.get(incr) == '/') {
+                                        System.out.println("comentario de muitas linhas");
+                                        continua = false;
+                                        break nome;
+                                    }
+                                }
+                                if (incr == entrada.size() - 1 && continua == true) {
+                                    System.out.println("fim do programa! Final do comentário nao encontrado");
+                                    break thedo;
+                                }
+                            }
+                            tokenTEMP.clear();
+                            incr++;
+                            estado = 0;
+                        } else if (entrada.get(incr) == '-') {
+                            tokenTEMP.add(entrada.get(incr));
+                            idOperador(pal, tokenTEMP, simbolos);
+                            estado = 0;
+                            incr++;
+                            break thedo;
+                        } else {
+                            idSimbol(pal, tokenTEMP, simbolos);
+                            incr++;
+                            estado = 0;
+                            break thedo;
+                        }
+                    }
+            }
+        } while (incr < entrada.size());
+        return this.pal;
+    }
+
+    public boolean verifica(List<Character> tokenTEMP, List<String> proibidas) throws IOException {
+        String texto = "";
+        for (Character c : tokenTEMP) {
+            //System.out.println("char: " + c);
+            texto += c;
+        }
+        if (proibidas.contains(texto)) {
+            return true;
+        }
+        
+        return false;
+    }
+    public void addReservada(Tokens pal, List<Character> tokenTEMP) throws IOException {
+        String texto = "";
+        for (Character c : tokenTEMP) {
+            //System.out.println("char: " + c);
+            texto += c;
+        }
+        //System.out.println(texto+" é Palavra Reservada");
+        pal.setConteudo(texto);
+        pal.setTipo("PReservada");
+        tokenTEMP.clear();
+    }
+
+    public boolean adicionar(Tokens pal, List<Character> tokenTEMP, List<String> identificadores, boolean flag) throws IOException {
+        String texto = "";
+        int cont = 0;
+        int i = 0;
+        boolean retorno = true;
+        boolean valido = true;
+        for (Character palavra : tokenTEMP) {
+            texto += palavra;
+            if (palavra == '_') {
+                if (i != 1) {
+                    valido = false;
+                }
+                cont++;
+            }
+            i++;
+        }
+        if ((Character.isLetter(tokenTEMP.get(0)) && flag == false) && (Character.isLetter(tokenTEMP.get(tokenTEMP.size() - 1)) && cont <= 1) && (valido == true)) {
+            identificadores.add(texto);
+            //System.out.println(texto + " é identificador");
+        } else {
+            //System.out.println(texto+" não é identificador");
+            retorno = false;
+        }
+        flag = true;
+        valido = true;
+        tokenTEMP.clear();
+        pal.setTipo("Identificador");
+        pal.setConteudo(texto);
+        return retorno;
+    }
+
+    public void validaDigito(Tokens pal, List<Character> tokenTEMP, List<String> digitos) throws IOException {
+        String texto = "";
+        for (Character palavra : tokenTEMP) {
+            texto += palavra;
+        }
+        digitos.add(texto);
+        //System.out.println(texto + " é digito");
+        tokenTEMP.clear();
+        pal.setTipo("Digito");
+        pal.setConteudo(texto);
+        
+    }
+
+    public void idSimbol(Tokens pal, List<Character> tokenTEMP, List<String> simbolos) throws IOException {
+        String texto = "";
+        for (Character palavra : tokenTEMP) {
+            texto += palavra;
+        }
+        if (!Character.isLetter(tokenTEMP.get(0)) && !Character.isDigit(tokenTEMP.get(0))) {
+            simbolos.add(texto);
+            //System.out.println(texto + " é simbolo");
+        } else {
+            //System.out.println(texto+" não é identificador");
+        }
+        tokenTEMP.clear();
+        pal.setTipo("Simbolo");
+        pal.setConteudo(texto);
+        
+    }
+
+    public void idOperador(Tokens pal, List<Character> tokenTEMP, List<String> simbolos) throws IOException {
+        String texto = "";
+        for (Character palavra : tokenTEMP) {
+            texto += palavra;
+        }
+        simbolos.add(texto);
+        //System.out.println(texto + " é operador");
+        tokenTEMP.clear();
+        pal.setTipo("Operador");
+        pal.setConteudo(texto);
+        
+    }
+
+    public List<Tokens> getTokens() {
+        return tokens;
+    }
+
+    public void setTokens(Tokens obj) {
+        this.tokens.add(obj);
+    }
+
+    public int getIncr() {
+        return incr;
+    }
+
+    public void setIncr(int incr) {
+        this.incr = incr;
+    }
+/////////////////////////////////////////////////// FUNCOES DO SINTATICO
+
+    public void Sintatico() throws IOException {
+        Tokens obj = new Tokens();
+        obj = obter_token();
+        if (!obj.getConteudo().equals("programa")) {
+            System.out.println("BREAK! 'programa' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (!obj.getTipo().equals("Identificador")) {
+            System.out.println("BREAK! Identificador não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (!obj.getConteudo().equals(";")) {
+            System.out.println("BREAK! ';' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        bloco(obj);
+        obj = obter_token();
+        if (!obj.getConteudo().equals(".")) {
+            System.out.println("BREAK! '.' não encontrado");
+            return;
+        }
+    }
+
+    public void bloco(Tokens obj) throws IOException {
+        if (obj.getConteudo().equals("tipo")) {
+            declara_tipo(obj);
+        }
+        if (obj.getConteudo().equals("var")) {
+            declara_var(obj);
+        }
+        while (obj.getConteudo().equals("procedimento") || obj.getConteudo().equals("funcao")) {
+            if (obj.getConteudo().equals("procedimento")) {
+                declara_procedimento(obj);
+            } else {
+                declara_funcao(obj);
+            }
+        }
+        if (obj.getConteudo().equals("inicio")) {
+            comando_composto(obj);
+        } else {
+            System.out.println("BREAK! 'inicio' não encontrado");
+            return;
+        }
+    }
+
+    public void declara_procedimento(Tokens obj) throws IOException {
+        obj = obter_token();
+        if (!obj.getTipo().equals("Identificador")) {
+            System.out.println("BREAK! Identificador não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (obj.getConteudo().equals("var") || obj.getTipo().equals("Identificador")) {
+            parametros_formais(obj);
+            obj = obter_token();
+        }
+        if (!obj.getConteudo().equals(";")) {
+            System.out.println("BREAK! ';' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        bloco(obj);
+    }
+
+    public void declara_funcao(Tokens obj) throws IOException {
+        obj = obter_token();
+        if (!obj.getTipo().equals("Identificador")) {
+            System.out.println("BREAK! Identificador não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (obj.getConteudo().equals("var") || obj.getTipo().equals("Identificador")) {
+            parametros_formais(obj);
+        }
+        obj = obter_token();
+        if (!obj.getConteudo().equals(":")) {
+            System.out.println("BREAK! ':' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (!obj.getTipo().equals("Identificador")) {
+            System.out.println("BREAK! Identificador não encontrado");
+            return;
+        }
+        obj = obter_token();
+        if (!obj.getConteudo().equals(";")) {
+            System.out.println("BREAK! ';' não encontrado");
+            return;
+        }
+        bloco(obj);
+    }
+
+    public void declara_tipo(Tokens obj) throws IOException {
+        obj = obter_token();
+        do {
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! Identificador não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getConteudo().equals("=")) {
+                System.out.println("BREAK! '=' não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! Identificador não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getConteudo().equals(";")) {
+                System.out.println("BREAK! ';' não encontrado");
+                return;
+            }
+            obj = obter_token();
+        } while (obj.getTipo().equals("Identificador"));
+    }
+
+    public void declara_var(Tokens obj) throws IOException {
+        obj = obter_token();
+        do {
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! Identificador não encontrado");
+                return;
+            }
+            lista_identificadores(obj);
+            if (!obj.getConteudo().equals(":")) {
+                System.out.println("BREAK! ':' não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! Identificador não encontrado");
+                return;
+            }
+            obj = obter_token();
+            while (obj.getConteudo().equals(";")) {
+                obj = obter_token();
+                lista_identificadores(obj);
+                if (!obj.getConteudo().equals(":")) {
+                    System.out.println("BREAK! ':' não encontrado");
+                    return;
+                }
+                obj = obter_token();
+                if (!obj.getTipo().equals("Identificador")) {
+                    System.out.println("BREAK! Identificador não encontrado");
+                    return;
+                }
+                obj = obter_token();
+            }
+            if (!obj.getConteudo().equals(";")) {
+                System.out.println("BREAK! ';' não encontrado");
+                return;
+            }
+            obj = obter_token();
+        } while (obj.getTipo().equals("Identificador"));
+    }
+
+    private void parametros_formais(Tokens obj) throws IOException {
+        do {
+            if (obj.getTipo().equals("Identificador")) {
+                do {
+                    obj = obter_token();
+                } while (obj.getTipo().equals("Identificador") || obj.getConteudo().equals(","));
+            }
+            //obj = mainFunction();
+            if (!obj.getConteudo().equals(":")) {
+                System.out.println("BREAK! ':' não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! Identificador não encontrado");
+                return;
+            }
+            obj = obter_token();
+            if (!obj.getConteudo().equals(";")) {
+                System.out.println("BREAK! ';' não encontrado");
+                return;
+            }
+            obj = obter_token();
+        } while (obj.getTipo().equals("Identificador") || obj.getConteudo().equals("var") || obj.getConteudo().equals(";"));
+    }
+
+    private void comando_composto(Tokens obj) throws IOException {
+        obj = obter_token();
+        //do {
+        comando_sem_rotulo(obj);
+        obj = obter_token();
+        if (!obj.getConteudo().equals(";")) {
+            System.out.println("BREAK! ';' não encontrado");
+            return;
+        }
+        while (!obj.getConteudo().equals("fim")) {
+            comando_sem_rotulo(obj);
+            obj = obter_token();
+            if (!obj.getConteudo().equals(";")) {
+                System.out.println("BREAK! ';' não encontrado");
+                return;
+            }
+            obj = obter_token();
+        }
+        obj = obter_token();
+        //} while (obj.getTipo().equals("Identificador") || !obj.getConteudo().equals("fim"));
+    }
+
+    private void comando_sem_rotulo(Tokens obj) throws IOException {
+        if (obj.getTipo().equals("Identificador")) {
+            obj = obter_token();
+            if (obj.getConteudo().equals(":=")) {
+                comando_atribuicao(obj);
+                obj = obter_token();
+            } else if (obj.getConteudo().equals("(")) {
+                chamada_procedimento(obj);
+                obj = obter_token();
+            }
+        }
+        if (obj.getConteudo().equals("se")) {
+            comando_condicional(obj);
+        }
+        if (obj.getConteudo().equals("enquanto")) {
+            comando_repetitivo(obj);
+        }
+        if (obj.getConteudo().equals("leia")) {
+            comando_leia(obj);
+        }
+        if (obj.getConteudo().equals("imprima")) {
+            comando_imprima(obj);
+        }
+    }
+
+    private void comando_atribuicao(Tokens obj) throws IOException {
+        if (!obj.getConteudo().equals(":=")) {
+            System.out.println("BREAK! ':=' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        expressao(obj);
+    }
+
+    private void chamada_procedimento(Tokens obj) throws IOException {
+        obj = obter_token();
+        lista_expressao(obj);
+        if (!obj.getConteudo().equals(")")) {
+            System.out.println("BREAK! ')' não encontrado");
+            return;
+        }
+    }
+
+    private void comando_condicional(Tokens obj) throws IOException {
+        obj = obter_token();
+        expressao(obj);
+        obj = obter_token();
+        if (!obj.getConteudo().equals("entao")) {
+            System.out.println("BREAK! 'entao' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        comando_sem_rotulo(obj);
+        obj = obter_token();
+        if (obj.getConteudo().equals("senao")) {
+            obj = obter_token();
+            comando_sem_rotulo(obj);
+        }
+    }
+
+    private void comando_repetitivo(Tokens obj) throws IOException {
+        obj = obter_token();
+        expressao(obj);
+        obj = obter_token();
+        if (!obj.getConteudo().equals("do")) {
+            System.out.println("BREAK! 'do' não encontrado");
+            return;
+        }
+        obj = obter_token();
+        comando_sem_rotulo(obj);
+    }
+
+    private void comando_leia(Tokens obj) throws IOException {
+        obj = obter_token();
+        if (obj.getConteudo().equals("(")) {
+            obj = obter_token();
+            lista_identificadores(obj);
+        } else {
+            System.out.println("BREAK! '(' não encontrado");
+            return;
+        }
+        if (!obj.getConteudo().equals(")")) {
+            System.out.println("BREAK! ')' não encontrado");
+            return;
+        }
+    }
+
+    private void comando_imprima(Tokens obj) throws IOException {
+        obj = obter_token();
+        if (obj.getConteudo().equals("(")) {
+            obj = obter_token();
+            while (obj.getConteudo().equals(","));
+            {
+                obj = obter_token();
+                if (!obj.getTipo().equals("Identificador")) {
+                    System.out.println("BREAK! 'Identificador' não encontrado");
+                    return;
+                }
+                obj = obter_token();
+            }
+        } else {
+            System.out.println("BREAK! '(' não encontrado");
+            return;
+        }
+        if (!obj.getConteudo().equals(")")) {
+            System.out.println("BREAK! ')' não encontrado");
+            return;
+        }
+
+    }
+
+    private void fator(Tokens obj) throws IOException {
+        if (obj.getTipo().equals("Identificador")) {
+            obj = obter_token();
+            if (obj.getConteudo().equals("(")) {
+                lista_expressao(obj);
+                obj = obter_token();
+                if (!obj.getConteudo().equals(")")) {
+                    System.out.println("BREAK! ')' não encontrado");
+                    return;
+                }
+            } else {
+                System.out.println("BREAK! '(' não encontrado");
+                return;
+            }
+        }
+
+        if (obj.getTipo().equals("Digito")) {
+            numeros(obj);
+        }
+
+    }
+
+    private void numeros(Tokens obj) throws IOException {
+        do {
+            obj = obter_token();
+        } while (obj.getTipo().equals("Digito"));
+    }
+
+    private void expressao(Tokens obj) throws IOException {
+        expressao_simples(obj);
+        obj = obter_token();
+        if (obj.getConteudo().equals("=") || obj.getConteudo().equals("<>") || obj.getConteudo().equals("<") || obj.getConteudo().equals("<=") || obj.getConteudo().equals(">") || obj.getConteudo().equals(">=")) {
+            obj = obter_token();
+            expressao_simples(obj);
+        }
+    }
+
+    private void expressao_simples(Tokens obj) throws IOException {
+        if (obj.getConteudo().equals("+") || obj.getConteudo().equals("-")) {
+            obj = obter_token();
+        }
+        termo(obj);
+        while (obj.getConteudo().equals("+") || obj.getConteudo().equals("-") || obj.getConteudo().equals("ou")) {
+            obj = obter_token();
+            termo(obj);
+            obj = obter_token();
+        }
+    }
+
+    private void termo(Tokens obj) throws IOException {
+        fator(obj);
+        obj = obter_token();
+        while (obj.getConteudo().equals("*") || obj.getConteudo().equals("div") || obj.getConteudo().equals("e")) {
+            obj = obter_token();
+            fator(obj);
+            obj = obter_token();
+        }
+    }
+
+    private void lista_expressao(Tokens obj) throws IOException {
+        expressao(obj);
+        obj = obter_token();
+        while (obj.getConteudo().equals(";")) {
+            obj = obter_token();
+            expressao(obj);
+            obj = obter_token();
+        }
+    }
+
+    private void lista_identificadores(Tokens obj) throws IOException {
+        obj = obter_token();
+        while (obj.getConteudo().equals(",")) {
+            obj = obter_token();
+            if (!obj.getTipo().equals("Identificador")) {
+                System.out.println("BREAK! 'Identificador' não encontrado");
+                return;
+            }
+            obj = obter_token();
+        }
+    }
+
+}
